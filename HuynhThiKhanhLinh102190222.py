@@ -1,7 +1,8 @@
 from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
-from math import log
+from scipy.signal import find_peaks
+from scipy.signal.signaltools import medfilt
 
 class Wave:
 
@@ -45,11 +46,16 @@ class Wave:
 		return [t, ste]
 
 	#	Init threshold value
-	def InitThreshold(self, height = 1e-3):
+	def InitThreshold(self):
 		t, ste = self.STE()
 		pre = 0
 		i = 1
 		tmp = []
+
+		if min(ste) > 1e-4:
+			height = 6e-3
+		else:
+			height = 1e-3
 
 		while i < len(ste):
 			while i < len(ste) - 1 and ste[i] >= ste[i - 1]:
@@ -180,16 +186,92 @@ class Wave:
 
 		return Tmid
 
+	# Finding fundamental frequency of a signal in spectrum
+		# Frame-length: N = 0.025
+		# N-point FFT: N_FFT = 512
+	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025, N_FFT = 32768):
+		self.Normalize()
+
+		# Length of frame
+		frame_length = int(frame_length * self.Fs)
+
+		# Step: Distance of 2 index n
+		step = 4
+		frame_shift = frame_length // step
+		frame_count = int(len(self.x)/frame_shift + 1)
+
+		# Hamming window function
+		h = np.hamming(frame_length)
+
+		peak_index = []
+		oss = []
+		peaks = []
+		F0 = np.zeros(frame_count)
+		
+		# The frequency of each spectrum
+		freq = np.fft.fftfreq(N_FFT, 1/self.Fs)
+		one_sided_freq = freq[:N_FFT//2]
+			
+		# Loop for each speech frame
+		for (pos, i) in enumerate(speech):
+
+			# Index of each element in window
+			index = np.arange(i * frame_shift, i * frame_shift + frame_length)
+
+			# Value of each element in window
+			value = self.x[index] * h
+
+			# Use FFT function to analyze the spectrum of the frame
+			# The two-sided spectrum
+			two_sided_spectrum = abs(np.fft.fft(value, N_FFT))
+
+			# The one-sided spectrum
+			one_sided_spectrum = two_sided_spectrum[0:N_FFT//2]
+			one_sided_spectrum[1:] = one_sided_spectrum[1:] * 2
+			
+
+			# The index of peaks
+			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=120)[0]
+			if len(peak_index) <= 3:
+				continue
+			
+			peakFirst = one_sided_freq[peak_index[0]]
+			peakSecond = one_sided_freq[peak_index[1]]
+			peakThird = one_sided_freq[peak_index[2]]
+
+			f0_temp = abs(peakFirst - peakSecond)
+			f1_temp = abs(peakSecond - peakThird)
+
+			if f0_temp > 70 and f0_temp < 400:
+				if f1_temp > 70 and f1_temp < 400:
+					F0[i] = (f0_temp + f1_temp)/2
+
+			if (pos == 6):
+				# Get 3 peak in peaks
+				peaks.append(peak_index[:3])
+				oss = one_sided_spectrum
+
+		return [one_sided_freq, oss, peaks, F0]
+
+	# Median filter to smooth the F0
+	def MedianFilter(self, F0):
+		F0_median = medfilt(F0, kernel_size = 5)
+		return F0_median
+		
 	def PlotSpeechSilentDiscrimination(self, nameFile):
 		n = self.times
 		T = self.STEThreshold()
 		f, g = self.DetectSilenceSpeech(T)
 		t, ste = self.STE()
-
+		freq, oss, peaks, F0 = self.FundamentalFrequencyFFT(g)
+		F0_median = self.MedianFilter(F0)
+		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
-		ax1 = fig.add_subplot(211)
-		ax2 = fig.add_subplot(212)
+		ax1 = fig.add_subplot(321)
+		ax2 = fig.add_subplot(322)
+		ax3 = fig.add_subplot(312)
+		ax4 = fig.add_subplot(313)
 
 		print(">> Student")
 
@@ -211,6 +293,13 @@ class Wave:
 			print(start, "\t", end)
 
 		print()
+
+		# Plot one-sided spectrum and scatter the peaks with shape cute
+		ax3.plot(freq[:2000], oss[:2000], '#0080FF')
+		ax3.scatter(freq[peaks[0]], oss[peaks[0]], color = '#FF0000', marker = 'x')
+		ax3.set_title('One-sided spectrum')
+		ax3.set_xlabel('Frequency (Hz)')
+		ax3.set_ylabel('Power')
 
 		file = open(nameFile[:-3] + "txt", "r")
 		
@@ -236,6 +325,12 @@ class Wave:
 
 		ax2.plot(n, data, '#0080FF')
 		ax2.plot(t, ste, '#FF0000')
+
+		# Plot F0 and silence speech discrimination
+		ax4.plot(t, F0_median, '.')
+		ax4.set_title('Fundamental Frequency')
+		ax4.set_xlabel('Time (s)')
+		ax4.set_ylabel('Frequency (Hz)')
 
 		plt.tight_layout()
 		plt.savefig(nameFile[:-3] + 'png')
