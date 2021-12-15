@@ -39,7 +39,7 @@ class Wave:
 			ste.append(E[min(len(E) - 1, end)] - E[max(1, start) - 1])
 			t.append((i - 1) / self.Fs)
 
-		#Normalize STE
+		# Normalize STE
 		ste = np.array(ste)/max(ste)
 		t = np.array(t)
 
@@ -188,7 +188,7 @@ class Wave:
 
 	# Finding fundamental frequency of a signal in spectrum
 		# Frame-length: N = 0.025
-		# N-point FFT: N_FFT = 512
+		# N-point FFT: N_FFT = 2^15
 	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025, N_FFT = 32768):
 		self.Normalize()
 
@@ -228,7 +228,6 @@ class Wave:
 			# The one-sided spectrum
 			one_sided_spectrum = two_sided_spectrum[0:N_FFT//2]
 			one_sided_spectrum[1:] = one_sided_spectrum[1:] * 2
-			
 
 			# The index of peaks
 			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=120)[0]
@@ -256,21 +255,31 @@ class Wave:
 	# Median filter to smooth the F0
 	def MedianFilter(self, F0):
 		F0_median = medfilt(F0, kernel_size = 5)
-		return F0_median
+
+		# Calc F0 mean and std
+		F0_filter = []
+		for i in range(len(F0_median)):
+			if F0_median[i] != 0:
+				F0_filter.append(F0_median[i])
+		F0_mean = np.mean(F0_filter)
+		F0_std = np.std(F0_filter)
+		return [F0_median, F0_mean, F0_std]
 		
 	def PlotSpeechSilentDiscrimination(self, nameFile):
 		n = self.times
 		T = self.STEThreshold()
+		print('Threshold: ', T, end = '\n\n')
+
 		f, g = self.DetectSilenceSpeech(T)
 		t, ste = self.STE()
 		freq, oss, peaks, F0 = self.FundamentalFrequencyFFT(g)
-		F0_median = self.MedianFilter(F0)
+		F0_median, F0_mean, F0_std = self.MedianFilter(F0)
 		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
 		ax1 = fig.add_subplot(321)
-		ax2 = fig.add_subplot(322)
-		ax3 = fig.add_subplot(312)
+		ax2 = fig.add_subplot(312)
+		ax3 = fig.add_subplot(322)
 		ax4 = fig.add_subplot(313)
 
 		print(">> Student")
@@ -292,7 +301,8 @@ class Wave:
 
 			print(start, "\t", end)
 
-		print()
+		print('F0mean: ', F0_mean)
+		print('F0std: ', F0_std, end = '\n\n')
 
 		# Plot one-sided spectrum and scatter the peaks with shape cute
 		ax3.plot(freq[:2000], oss[:2000], '#0080FF')
@@ -307,6 +317,7 @@ class Wave:
 
 		for i in file:
 			i = i.split()
+
 			if i[-1] == 'sil':
 				start, end = float(i[0]), float(i[1])
 
@@ -317,6 +328,12 @@ class Wave:
 
 				ax2.plot([start, start], [-1, 1], '#FF0000')
 				ax2.plot([end, end], [-1, 1], '#FF0000')
+
+			if i[0] == 'F0mean':
+				print("F0mean: ", i[1])
+
+			if i[0] == 'F0std':
+				print("F0std: ", i[1])
 
 		ax1.plot([0, n[-1]], [T, T], '#FFA500')
 		ax1.plot(t, ste, '#0080FF')
