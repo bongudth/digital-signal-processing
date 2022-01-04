@@ -209,6 +209,7 @@ class Wave:
 		peak_index = []
 		peaks = []
 		F0_FFT = np.zeros(frame_num)
+		F0_HPS = np.zeros(frame_num)
 		
 		# The frequency of each spectrum
 		freq = np.fft.fftfreq(N_FFT, 1/self.Fs)
@@ -231,6 +232,8 @@ class Wave:
 			one_sided_spectrum = two_sided_spectrum[0:N_FFT//2]
 			one_sided_spectrum[1:] = one_sided_spectrum[1:] * 2
 
+			# Start Fast Fourier transform ###############################################################
+
 			# The index of peaks
 			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=70)[0]
 			if len(peak_index) <= 3:
@@ -250,8 +253,36 @@ class Wave:
 			if (pos == 6):
 				# Get 3 peak in peaks
 				peaks.append(peak_index[:3])
+			
+			# End Fast Fourier transform ###############################################################
 
-		return F0_FFT
+			# Start Harmonic product spectrum ###############################################################
+			hps = np.copy(one_sided_spectrum)
+			for j in range(2, 6):
+				hpsj = one_sided_spectrum[::j]
+				hps[:len(hpsj)] += hpsj
+
+			F0_HPS_num = np.argmax(hps)
+			F0_HPS_tmp = one_sided_freq[F0_HPS_num]
+
+			while True:
+				if F0_HPS_num * 7 // 10 <= 0:
+					break
+				F1_HPS_num = np.argmax(hps[:F0_HPS_num * 7 // 10])
+				if hps[F1_HPS_num] * 1.5 >= hps[F0_HPS_num]:
+					F0_HPS_tmp = one_sided_freq[F1_HPS_num]
+				else:
+					break
+				F0_HPS_num = F1_HPS_num
+
+			if (F0_HPS_tmp > 70 and F0_HPS_tmp < 400):
+				F0_HPS[i] = F0_HPS_tmp
+			else:
+				F0_HPS[i] = 0
+
+			# End Harmonic product spectrum ###############################################################
+
+		return [F0_FFT, F0_HPS]
 
 	# Median filter to smooth the F0
 	def MedianFilter(self, F0):
@@ -272,8 +303,9 @@ class Wave:
 
 		_, g = self.DetectSilenceSpeech(T)
 		t, _ = self.STE()
-		F0_FFT = self.FundamentalFrequency(g)
+		F0_FFT, F0_HPS = self.FundamentalFrequency(g)
 		F0_FFT_median, F0_FFT_mean, F0_FFT_std = self.MedianFilter(F0_FFT)
+		F0_HPS_median, F0_HPS_mean, F0_HPS_std = self.MedianFilter(F0_HPS)
 		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
@@ -284,8 +316,11 @@ class Wave:
 
 		print(">> Student")
 
-		print('F0mean: ', F0_FFT_mean)
-		print('F0std: ', F0_FFT_std, end = '\n\n')
+		print('F0_FFT mean: ', F0_FFT_mean)
+		print('F0_FFT std: ', F0_FFT_std, end = '\n\n')
+		
+		print('F0_HPS mean: ', F0_HPS_mean)
+		print('F0_HPS std: ', F0_HPS_std, end = '\n\n')
 
 		file = open(nameFile[:-3] + "txt", "r")
 		
@@ -300,11 +335,17 @@ class Wave:
 			if i[0] == 'F0std':
 				print("F0std: ", i[1])
 
-		# Plot F0 and silence speech discrimination
+		# Plot F0_FFT
 		ax1.plot(t, F0_FFT_median, '.')
 		ax1.set_title('FFT')
 		ax1.set_xlabel('Time (s)')
 		ax1.set_ylabel('Frequency (Hz)')
+
+		# Plot F0_HPS
+		ax2.plot(t, F0_HPS_median, '.')
+		ax2.set_title('HPS')
+		ax2.set_xlabel('Time (s)')
+		ax2.set_ylabel('Frequency (Hz)')
 
 		plt.tight_layout()
 		# plt.savefig(nameFile[:-3] + 'png')
