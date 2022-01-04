@@ -46,16 +46,11 @@ class Wave:
 		return [t, ste]
 
 	#	Init threshold value
-	def InitThreshold(self):
+	def InitThreshold(self, height = 1e-2):
 		t, ste = self.STE()
 		pre = 0
 		i = 1
 		tmp = []
-
-		if min(ste) > 1e-4:
-			height = 6e-3
-		else:
-			height = 1e-3
 
 		while i < len(ste):
 			while i < len(ste) - 1 and ste[i] >= ste[i - 1]:
@@ -186,27 +181,35 @@ class Wave:
 
 		return Tmid
 
-	# Finding fundamental frequency of a signal in spectrum
-		# Frame-length: N = 0.025
-		# N-point FFT: N_FFT = 2^15
-	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025, N_FFT = 32768):
-		self.Normalize()
-
-		# Length of frame
+	# Framing signal
+	def Framing(self, frame_length):
 		frame_length = int(frame_length * self.Fs)
+		frame_shift = frame_length // 4
+		frame_num = int(len(self.x)/frame_shift + 1)
+		
+		return [frame_num, frame_length, frame_shift]
 
-		# Step: Distance of 2 index n
-		step = 4
-		frame_shift = frame_length // step
-		frame_count = int(len(self.x)/frame_shift + 1)
+	# Calculate Hamming
+	def Hamming(self, N):
+		return 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(N) / (N - 1))
 
-		# Hamming window function
-		h = np.hamming(frame_length)
+	# Find FFT points
+	def FindFFTPoints(self):
+		N_FFT = 2**(int(np.log2(self.Fs/2)) + 1)
+		print("FFT points: ", N_FFT)
+		return N_FFT
+
+	# Finding fundamental frequency of a signal
+	def FundamentalFrequency(self, speech, frame_length = 0.025):
+		self.Normalize()
+		N_FFT = self.FindFFTPoints()		
+		frame_num, frame_length, frame_shift = self.Framing(frame_length)
+		h = self.Hamming(frame_length)
 
 		peak_index = []
-		oss = []
 		peaks = []
-		F0 = np.zeros(frame_count)
+		F0_FFT = np.zeros(frame_num)
+		F0_HPS = np.zeros(frame_num)
 		
 		# The frequency of each spectrum
 		freq = np.fft.fftfreq(N_FFT, 1/self.Fs)
@@ -229,8 +232,10 @@ class Wave:
 			one_sided_spectrum = two_sided_spectrum[0:N_FFT//2]
 			one_sided_spectrum[1:] = one_sided_spectrum[1:] * 2
 
+			# Start Fast Fourier transform ###############################################################
+
 			# The index of peaks
-			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=120)[0]
+			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=70)[0]
 			if len(peak_index) <= 3:
 				continue
 			
@@ -243,14 +248,41 @@ class Wave:
 
 			if f0_temp > 70 and f0_temp < 400:
 				if f1_temp > 70 and f1_temp < 400:
-					F0[i] = (f0_temp + f1_temp)/2
+					F0_FFT[i] = (f0_temp + f1_temp)/2
 
 			if (pos == 6):
 				# Get 3 peak in peaks
 				peaks.append(peak_index[:3])
-				oss = one_sided_spectrum
+			
+			# End Fast Fourier transform ###############################################################
 
-		return [one_sided_freq, oss, peaks, F0]
+			# Start Harmonic product spectrum ###############################################################
+			hps = np.copy(one_sided_spectrum)
+			for j in range(2, 6):
+				hpsj = one_sided_spectrum[::j]
+				hps[:len(hpsj)] += hpsj
+
+			F0_HPS_num = np.argmax(hps)
+			F0_HPS_tmp = one_sided_freq[F0_HPS_num]
+
+			while True:
+				if F0_HPS_num * 7 // 10 <= 0:
+					break
+				F1_HPS_num = np.argmax(hps[:F0_HPS_num * 7 // 10])
+				if hps[F1_HPS_num] * 1.5 >= hps[F0_HPS_num]:
+					F0_HPS_tmp = one_sided_freq[F1_HPS_num]
+				else:
+					break
+				F0_HPS_num = F1_HPS_num
+
+			if (F0_HPS_tmp > 70 and F0_HPS_tmp < 400):
+				F0_HPS[i] = F0_HPS_tmp
+			else:
+				F0_HPS[i] = 0
+
+			# End Harmonic product spectrum ###############################################################
+
+		return [F0_FFT, F0_HPS]
 
 	# Median filter to smooth the F0
 	def MedianFilter(self, F0):
@@ -265,51 +297,30 @@ class Wave:
 		F0_std = np.std(F0_filter)
 		return [F0_median, F0_mean, F0_std]
 		
-	def PlotSpeechSilentDiscrimination(self, nameFile):
-		n = self.times
+	def PlotFundamentalFrequency(self, nameFile):
 		T = self.STEThreshold()
 		print('Threshold: ', T, end = '\n\n')
 
-		f, g = self.DetectSilenceSpeech(T)
-		t, ste = self.STE()
-		freq, oss, peaks, F0 = self.FundamentalFrequencyFFT(g)
-		F0_median, F0_mean, F0_std = self.MedianFilter(F0)
+		_, g = self.DetectSilenceSpeech(T)
+		t, _ = self.STE()
+		F0_FFT, F0_HPS = self.FundamentalFrequency(g)
+		F0_FFT_median, F0_FFT_mean, F0_FFT_std = self.MedianFilter(F0_FFT)
+		F0_HPS_median, F0_HPS_mean, F0_HPS_std = self.MedianFilter(F0_HPS)
 		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
-		ax1 = fig.add_subplot(321)
-		ax2 = fig.add_subplot(312)
-		ax3 = fig.add_subplot(322)
-		ax4 = fig.add_subplot(313)
+		ax1 = fig.add_subplot(411)
+		ax2 = fig.add_subplot(412)
+		ax3 = fig.add_subplot(413)
+		ax4 = fig.add_subplot(414)
 
 		print(">> Student")
 
-		for i in f:
-			start, end = t[i[0]], t[i[-1]]
-
-			ax1.plot([start, start], [0, max(ste)], '#008000')
-			ax1.plot([end, end], [0, max(ste)], '#008000')
-			ax1.set_title('Short-Time Energy')
-			ax1.set_xlabel('Time (s)')
-			ax1.set_ylabel('Enegry')
-
-			ax2.plot([start, start], [-1, 1], '#008000')
-			ax2.plot([end, end], [-1, 1], '#008000')
-			ax2.set_title('Speech Silent Discrimination')
-			ax2.set_xlabel('Time (s)')
-			ax2.set_ylabel('Amplitude')
-
-			print(start, "\t", end)
-
-		print('F0mean: ', F0_mean)
-		print('F0std: ', F0_std, end = '\n\n')
-
-		# Plot one-sided spectrum and scatter the peaks with shape cute
-		ax3.plot(freq[:2000], oss[:2000], '#0080FF')
-		ax3.scatter(freq[peaks[0]], oss[peaks[0]], color = '#FF0000', marker = 'x')
-		ax3.set_title('One-sided spectrum')
-		ax3.set_xlabel('Frequency (Hz)')
-		ax3.set_ylabel('Power')
+		print('F0_FFT mean: ', F0_FFT_mean)
+		print('F0_FFT std: ', F0_FFT_std, end = '\n\n')
+		
+		print('F0_HPS mean: ', F0_HPS_mean)
+		print('F0_HPS std: ', F0_HPS_std, end = '\n\n')
 
 		file = open(nameFile[:-3] + "txt", "r")
 		
@@ -318,46 +329,33 @@ class Wave:
 		for i in file:
 			i = i.split()
 
-			if i[-1] == 'sil':
-				start, end = float(i[0]), float(i[1])
-
-				print(start, "\t\t\t\t", end)
-
-				ax1.plot([start, start], [0, max(ste)], '#FF0000')
-				ax1.plot([end, end], [0, max(ste)], '#FF0000')
-
-				ax2.plot([start, start], [-1, 1], '#FF0000')
-				ax2.plot([end, end], [-1, 1], '#FF0000')
-
 			if i[0] == 'F0mean':
 				print("F0mean: ", i[1])
 
 			if i[0] == 'F0std':
 				print("F0std: ", i[1])
 
-		ax1.plot([0, n[-1]], [T, T], '#FFA500')
-		ax1.plot(t, ste, '#0080FF')
+		# Plot F0_FFT
+		ax1.plot(t, F0_FFT_median, '.')
+		ax1.set_title('FFT')
+		ax1.set_xlabel('Time (s)')
+		ax1.set_ylabel('Frequency (Hz)')
 
-		data = self.x
-
-		ax2.plot(n, data, '#0080FF')
-		ax2.plot(t, ste, '#FF0000')
-
-		# Plot F0 and silence speech discrimination
-		ax4.plot(t, F0_median, '.')
-		ax4.set_title('Fundamental Frequency')
-		ax4.set_xlabel('Time (s)')
-		ax4.set_ylabel('Frequency (Hz)')
+		# Plot F0_HPS
+		ax2.plot(t, F0_HPS_median, '.')
+		ax2.set_title('HPS')
+		ax2.set_xlabel('Time (s)')
+		ax2.set_ylabel('Frequency (Hz)')
 
 		plt.tight_layout()
 		plt.savefig(nameFile[:-3] + 'png')
 
 def main():
-	name = ['30FTN.wav', '42FQT.wav', '44MTT.wav', '45MDV.wav']
+	name = ['01MDA.wav', '02FVA.wav', '03MAB.wav', '06FTB.wav', '30FTN.wav', '42FQT.wav', '44MTT.wav', '45MDV.wav']
 	for i in name:
 		wave = Wave(i)
 		print("FILE" , i, end="\n\n")
-		wave.PlotSpeechSilentDiscrimination(i)
+		wave.PlotFundamentalFrequency(i)
 		print("________________________________________", end="\n\n")
 	plt.show()
 
