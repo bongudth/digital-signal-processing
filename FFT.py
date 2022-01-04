@@ -181,33 +181,34 @@ class Wave:
 
 		return Tmid
 
+	# Framing signal
+	def Framing(self, frame_length):
+		frame_length = int(frame_length * self.Fs)
+		frame_shift = frame_length // 4
+		frame_num = int(len(self.x)/frame_shift + 1)
+		
+		return [frame_num, frame_length, frame_shift]
+
+	# Calculate Hamming
+	def Hamming(self, N):
+		return 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(N) / (N - 1))
+
 	# Find FFT points
 	def FindFFTPoints(self):
 		N_FFT = 2**(int(np.log2(self.Fs/2)) + 1)
 		print("FFT points: ", N_FFT)
 		return N_FFT
 
-	# Finding fundamental frequency of a signal in spectrum
-		# Frame-length: N = 0.025
-	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025):
+	# Finding fundamental frequency of a signal
+	def FundamentalFrequency(self, speech, frame_length = 0.025):
 		self.Normalize()
-		N_FFT = self.FindFFTPoints()
-
-		# Length of frame
-		frame_length = int(frame_length * self.Fs)
-
-		# Step: Distance of 2 index n
-		step = 4
-		frame_shift = frame_length // step
-		frame_count = int(len(self.x)/frame_shift + 1)
-
-		# Hamming window function
-		h = np.hamming(frame_length)
+		N_FFT = self.FindFFTPoints()		
+		frame_num, frame_length, frame_shift = self.Framing(frame_length)
+		h = self.Hamming(frame_length)
 
 		peak_index = []
-		oss = []
 		peaks = []
-		F0 = np.zeros(frame_count)
+		F0_FFT = np.zeros(frame_num)
 		
 		# The frequency of each spectrum
 		freq = np.fft.fftfreq(N_FFT, 1/self.Fs)
@@ -244,14 +245,13 @@ class Wave:
 
 			if f0_temp > 70 and f0_temp < 400:
 				if f1_temp > 70 and f1_temp < 400:
-					F0[i] = (f0_temp + f1_temp)/2
+					F0_FFT[i] = (f0_temp + f1_temp)/2
 
 			if (pos == 6):
 				# Get 3 peak in peaks
 				peaks.append(peak_index[:3])
-				oss = one_sided_spectrum
 
-		return F0
+		return F0_FFT
 
 	# Median filter to smooth the F0
 	def MedianFilter(self, F0):
@@ -272,7 +272,7 @@ class Wave:
 
 		_, g = self.DetectSilenceSpeech(T)
 		t, _ = self.STE()
-		F0_FFT = self.FundamentalFrequencyFFT(g)
+		F0_FFT = self.FundamentalFrequency(g)
 		F0_FFT_median, F0_FFT_mean, F0_FFT_std = self.MedianFilter(F0_FFT)
 		
 		fig = plt.figure(nameFile)
