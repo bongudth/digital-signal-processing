@@ -181,11 +181,17 @@ class Wave:
 
 		return Tmid
 
+	# Find FFT points
+	def FindFFTPoints(self):
+		N_FFT = 2**(int(np.log2(self.Fs/2)) + 1)
+		print("FFT points: ", N_FFT)
+		return N_FFT
+
 	# Finding fundamental frequency of a signal in spectrum
 		# Frame-length: N = 0.025
-		# N-point FFT: N_FFT = 2^15
-	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025, N_FFT = 32768):
+	def FundamentalFrequencyFFT(self, speech, frame_length = 0.025):
 		self.Normalize()
+		N_FFT = self.FindFFTPoints()
 
 		# Length of frame
 		frame_length = int(frame_length * self.Fs)
@@ -225,7 +231,7 @@ class Wave:
 			one_sided_spectrum[1:] = one_sided_spectrum[1:] * 2
 
 			# The index of peaks
-			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=120)[0]
+			peak_index = find_peaks(one_sided_spectrum, height=4, prominence=4, distance=70)[0]
 			if len(peak_index) <= 3:
 				continue
 			
