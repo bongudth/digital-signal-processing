@@ -369,8 +369,7 @@ class Wave:
 			if F0_median[i] != 0:
 				F0_filter.append(F0_median[i])
 		F0_mean = np.mean(F0_filter)
-		F0_std = np.std(F0_filter)
-		return [F0_median, F0_mean, F0_std]
+		return [F0_median, F0_mean]
 		
 	def PlotFundamentalFrequency(self, nameFile):
 		T = self.STEThreshold()
@@ -380,12 +379,12 @@ class Wave:
 		t, _ = self.STE()
 
 		F0_FFT, F0_HPS = self.FundamentalFrequency_FFT_HPS(g)
-		F0_FFT_median, F0_FFT_mean, F0_FFT_std = self.MedianFilter(F0_FFT)
-		F0_HPS_median, F0_HPS_mean, F0_HPS_std = self.MedianFilter(F0_HPS)
+		F0_FFT_median, F0_FFT_mean = self.MedianFilter(F0_FFT)
+		F0_HPS_median, F0_HPS_mean = self.MedianFilter(F0_HPS)
 
 		t_frames, F0_ACF, F0_AMDF = self.FundamentalFrequency_ACF_AMDF(T, t)
-		F0_ACF_median, F0_ACF_mean, F0_ACF_std = self.MedianFilter(F0_ACF)
-		F0_AMDF_median, F0_AMDF_mean, F0_AMDF_std = self.MedianFilter(F0_AMDF)
+		F0_ACF_median, F0_ACF_mean = self.MedianFilter(F0_ACF)
+		F0_AMDF_median, F0_AMDF_mean = self.MedianFilter(F0_AMDF)
 		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
@@ -397,16 +396,28 @@ class Wave:
 		print(">> Student")
 
 		print('F0_FFT mean: ', F0_FFT_mean)
-		print('F0_FFT std: ', F0_FFT_std, end = '\n\n')
+		if(F0_FFT_mean > 150):
+			print('Gender: female', end = '\n\n')
+		else:
+			print('Gender: male', end = '\n\n')
 		
 		print('F0_HPS mean: ', F0_HPS_mean)
-		print('F0_HPS std: ', F0_HPS_std, end = '\n\n')
+		if(F0_HPS_mean > 150):
+			print('Gender: female', end = '\n\n')
+		else:
+			print('Gender: male', end = '\n\n')
 
 		print('F0_ACF mean: ', F0_ACF_mean)
-		print('F0_ACF std: ', F0_ACF_std, end = '\n\n')
+		if(F0_ACF_mean > 150):
+			print('Gender: female', end = '\n\n')
+		else:
+			print('Gender: male', end = '\n\n')
 
 		print('F0_AMDF mean: ', F0_AMDF_mean)
-		print('F0_AMDF std: ', F0_AMDF_std, end = '\n\n')
+		if(F0_AMDF_mean > 150):
+			print('Gender: female', end = '\n\n')
+		else:
+			print('Gender: male', end = '\n\n')
 
 		file = open(nameFile[:-3] + "txt", "r")
 		
@@ -417,9 +428,6 @@ class Wave:
 
 			if i[0] == 'F0mean':
 				print("F0mean: ", i[1])
-
-			if i[0] == 'F0std':
-				print("F0std: ", i[1])
 
 		# Plot F0_FFT
 		ax1.plot(t, F0_FFT_median, '.')
