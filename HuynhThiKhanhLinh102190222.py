@@ -266,21 +266,11 @@ class Wave:
 			F0_HPS_num = np.argmax(hps)
 			F0_HPS_tmp = one_sided_freq[F0_HPS_num]
 
-			while True:
-				if F0_HPS_num * 7 // 10 <= 0:
-					break
-				F1_HPS_num = np.argmax(hps[:F0_HPS_num * 7 // 10])
-				if hps[F1_HPS_num] * 1.5 >= hps[F0_HPS_num]:
-					F0_HPS_tmp = one_sided_freq[F1_HPS_num]
-				else:
-					break
-				F0_HPS_num = F1_HPS_num
-
-			if (F0_HPS_tmp > 70 and F0_HPS_tmp < 400):
+			if F0_HPS_tmp > 70 and F0_HPS_tmp < 400:
 				F0_HPS[i] = F0_HPS_tmp
 			else:
 				F0_HPS[i] = 0
-
+			
 			# End Harmonic product spectrum ###############################################################
 
 		return [F0_FFT, F0_HPS]
