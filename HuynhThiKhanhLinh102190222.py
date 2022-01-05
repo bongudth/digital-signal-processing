@@ -182,7 +182,7 @@ class Wave:
 		return Tmid
 
 	# Framing signal
-	def Framing(self, frame_length):
+	def Framing(self, frame_length = 0.025):
 		frame_length = int(frame_length * self.Fs)
 		frame_shift = frame_length // 4
 		frame_num = int(len(self.x)/frame_shift + 1)
@@ -196,14 +196,15 @@ class Wave:
 	# Find FFT points
 	def FindFFTPoints(self):
 		N_FFT = 2**(int(np.log2(self.Fs/2)) + 1)
-		print("FFT points: ", N_FFT)
+		print("FFT points: ", N_FFT, end = '\n\n')
 		return N_FFT
 
 	# Finding fundamental frequency of a signal
-	def FundamentalFrequency(self, speech, frame_length = 0.025):
+	# Using FFT and HPS
+	def FundamentalFrequency_FFT_HPS(self, speech):
 		self.Normalize()
 		N_FFT = self.FindFFTPoints()		
-		frame_num, frame_length, frame_shift = self.Framing(frame_length)
+		frame_num, frame_length, frame_shift = self.Framing()
 		h = self.Hamming(frame_length)
 
 		peak_index = []
@@ -284,6 +285,90 @@ class Wave:
 
 		return [F0_FFT, F0_HPS]
 
+	# Get frames
+	def GetFrames(self):
+		frame_num, frame_length, frame_shift = self.Framing()
+		frame_num = (len(self.x) - frame_length) // frame_shift
+		
+		frames = np.zeros(shape=(frame_num, frame_length))
+
+		for i in range(frame_num):
+			frames[i] = self.x[i * frame_shift : i * frame_shift + frame_length]
+
+		return frames
+
+	# Calculate the energy of each frame
+	def Energy(self, frame):
+		return np.sum(frame**2)
+
+	# Calculate ACF
+	def CalcACF(self, x):
+		N = len(x)
+		x = np.concatenate((x, np.zeros(N)))
+
+		ACF = np.zeros(N)
+		for i in range(N):
+			ACF[i] = np.sum(x[0:N] * x[i:N+i])
+
+		# Normalize ACF
+		ACF = ACF / np.max(ACF)
+
+		return ACF
+
+	# Calculate AMDF
+	def CalcAMDF(self, x):
+		N = len(x)
+		x = np.concatenate((x, np.zeros(N)))
+
+		AMDF = np.zeros(N)
+		for i in range(N):
+			AMDF[i] = np.sum(abs(x[0:N] - x[i:N+i]))
+		
+		# Normalize AMDF
+		AMDF = AMDF / np.max(AMDF)
+
+		return AMDF
+
+	# Find fundamental frequency of a signal
+	# Using ACF and AMDF
+	def FundamentalFrequency_ACF_AMDF(self, T, t):
+		frames = self.GetFrames()
+
+		t_frames = []
+		energy_max = 0
+
+		for i in range(len(frames)):
+			t_frames.append(t[i])
+			energy_max = max(energy_max, self.Energy(frames[i]))
+
+		t_frames = np.array(t_frames)
+
+		F0_ACF = np.zeros(len(frames))
+		F0_AMDF = np.zeros(len(frames))
+
+		for i in range(len(frames)):
+			lag_min = int(self.Fs / 400)
+			lag_max = int(self.Fs / 70)
+
+			if self.Energy(frames[i]) > T * energy_max:
+				ACF = self.CalcACF(frames[i])
+				AMDF = self.CalcAMDF(frames[i])
+
+				ACF_lag = np.argmax(ACF[lag_min : lag_max + 1]) + lag_min
+				AMDF_lag = np.argmin(AMDF[lag_min : lag_max + 1]) + lag_min
+
+				if ACF[ACF_lag] >= T:
+					F0_ACF[i] = self.Fs / ACF_lag
+				else:
+					F0_ACF[i] = 0
+
+				if AMDF[AMDF_lag] >= T:
+					F0_AMDF[i] = self.Fs / AMDF_lag
+				else:
+					F0_AMDF[i] = 0
+
+		return [t_frames, F0_ACF, F0_AMDF]
+
 	# Median filter to smooth the F0
 	def MedianFilter(self, F0):
 		F0_median = medfilt(F0, kernel_size = 5)
@@ -299,13 +384,18 @@ class Wave:
 		
 	def PlotFundamentalFrequency(self, nameFile):
 		T = self.STEThreshold()
-		print('Threshold: ', T, end = '\n\n')
+		print('Threshold: ', T)
 
 		_, g = self.DetectSilenceSpeech(T)
 		t, _ = self.STE()
-		F0_FFT, F0_HPS = self.FundamentalFrequency(g)
+
+		F0_FFT, F0_HPS = self.FundamentalFrequency_FFT_HPS(g)
 		F0_FFT_median, F0_FFT_mean, F0_FFT_std = self.MedianFilter(F0_FFT)
 		F0_HPS_median, F0_HPS_mean, F0_HPS_std = self.MedianFilter(F0_HPS)
+
+		t_frames, F0_ACF, F0_AMDF = self.FundamentalFrequency_ACF_AMDF(T, t)
+		F0_ACF_median, F0_ACF_mean, F0_ACF_std = self.MedianFilter(F0_ACF)
+		F0_AMDF_median, F0_AMDF_mean, F0_AMDF_std = self.MedianFilter(F0_AMDF)
 		
 		fig = plt.figure(nameFile)
 		plt.suptitle(nameFile)
@@ -321,6 +411,12 @@ class Wave:
 		
 		print('F0_HPS mean: ', F0_HPS_mean)
 		print('F0_HPS std: ', F0_HPS_std, end = '\n\n')
+
+		print('F0_ACF mean: ', F0_ACF_mean)
+		print('F0_ACF std: ', F0_ACF_std, end = '\n\n')
+
+		print('F0_AMDF mean: ', F0_AMDF_mean)
+		print('F0_AMDF std: ', F0_AMDF_std, end = '\n\n')
 
 		file = open(nameFile[:-3] + "txt", "r")
 		
@@ -347,8 +443,20 @@ class Wave:
 		ax2.set_xlabel('Time (s)')
 		ax2.set_ylabel('Frequency (Hz)')
 
+		# Plot F0_ACF
+		ax3.plot(t_frames, F0_ACF_median, '.')
+		ax3.set_title('ACF')
+		ax3.set_xlabel('Time (s)')
+		ax3.set_ylabel('Frequency (Hz)')
+
+		# Plot F0_AMDF
+		ax4.plot(t_frames, F0_AMDF_median, '.')
+		ax4.set_title('AMDF')
+		ax4.set_xlabel('Time (s)')
+		ax4.set_ylabel('Frequency (Hz)')
+
 		plt.tight_layout()
-		plt.savefig(nameFile[:-3] + 'png')
+		# plt.savefig(nameFile[:-3] + 'png')
 
 def main():
 	name = ['01MDA.wav', '02FVA.wav', '03MAB.wav', '06FTB.wav', '30FTN.wav', '42FQT.wav', '44MTT.wav', '45MDV.wav']
