@@ -352,7 +352,7 @@ class Wave:
 				else:
 					F0_ACF[i] = 0
 
-				if AMDF[AMDF_lag] >= T:
+				if AMDF[AMDF_lag] <= T:
 					F0_AMDF[i] = self.Fs / AMDF_lag
 				else:
 					F0_AMDF[i] = 0

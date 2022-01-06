@@ -244,7 +244,7 @@ class Wave:
 
 				AMDF_lag = np.argmin(AMDF[lag_min : lag_max + 1]) + lag_min
 
-				if AMDF[AMDF_lag] >= T:
+				if AMDF[AMDF_lag] <= T:
 					F0_AMDF[i] = self.Fs / AMDF_lag
 				else:
 					F0_AMDF[i] = 0
