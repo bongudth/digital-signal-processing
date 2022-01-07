@@ -270,12 +270,12 @@ class Wave:
 		t_frames, F0_AMDF = self.FundamentalFrequency_ACF_AMDF(T, t)
 		F0_AMDF_median, F0_AMDF_mean = self.MedianFilter(F0_AMDF)
 		
-		fig = plt.figure(nameFile)
-		plt.suptitle(nameFile)
-		ax1 = fig.add_subplot(411)
-		ax2 = fig.add_subplot(412)
-		ax3 = fig.add_subplot(413)
-		ax4 = fig.add_subplot(414)
+		# fig = plt.figure(nameFile)
+		# plt.suptitle(nameFile)
+		# ax1 = fig.add_subplot(411)
+		# ax2 = fig.add_subplot(412)
+		# ax3 = fig.add_subplot(413)
+		# ax4 = fig.add_subplot(414)
 
 		print('F0_AMDF: ', F0_AMDF_mean)
 		if(F0_AMDF_mean > 150):
@@ -283,13 +283,13 @@ class Wave:
 		else:
 			print('Gender: male', end = '\n\n')
 
-		# Plot F0_AMDF
-		ax4.plot(t_frames, F0_AMDF_median, '.')
-		ax4.set_title('AMDF')
-		ax4.set_xlabel('Time (s)')
-		ax4.set_ylabel('Frequency (Hz)')
+		# # Plot F0_AMDF
+		# ax4.plot(t_frames, F0_AMDF_median, '.')
+		# ax4.set_title('AMDF')
+		# ax4.set_xlabel('Time (s)')
+		# ax4.set_ylabel('Frequency (Hz)')
 
-		plt.tight_layout()
+		# plt.tight_layout()
 		# plt.savefig(nameFile[:-3] + 'png')
 
 def main():
