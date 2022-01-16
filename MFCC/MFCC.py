@@ -220,14 +220,14 @@ class Wave:
 		plt.tight_layout()
 
 def main():
-	# NguyenAmHuanLuyen
-	folderNames = ['01MDA','02FVA', '03MAB', '04MHB', '05MVB',
-								'06FTB','07FTC', '08MLD', '09MPD', '10MSD',
-								'11MVD','12FTD', '14FHH', '15MMH', '16FTH',
-								'17MTH','18MNK', '19MXK', '20MVK', '21MTL',
-								'22MHL']
+	# # NguyenAmHuanLuyen-16k
+	# folderNames = ['01MDA','02FVA', '03MAB', '04MHB', '05MVB',
+	# 							'06FTB','07FTC', '08MLD', '09MPD', '10MSD',
+	# 							'11MVD','12FTD', '14FHH', '15MMH', '16FTH',
+	# 							'17MTH','18MNK', '19MXK', '20MVK', '21MTL',
+	# 							'22MHL']
 
-	# NguyenAmKiemThu
+	# NguyenAmKiemThu-16k
 	folderNames = ['23MTL', '24FTL', '25MLM', '27MCM', '28MVN',
 								'29MHN', '30FTN', '32MTP', '33MHP', '34MQP',
 								'35MMQ', '36MAQ', '37MDS', '38MDS', '39MTS',
@@ -239,7 +239,7 @@ def main():
 		print('FOLDER', folderName, end='\n\n')
 		
 		for vowel in vowels:
-			vowelPath = '{}/{}'.format(folderName, vowel)
+			vowelPath = 'NguyenAmKiemThu-16k/{}/{}'.format(folderName, vowel)
 			wave = Wave(vowelPath)
 			print('FILE', vowel)
 			wave.PlotSpeechSilentDiscrimination(vowelPath)
