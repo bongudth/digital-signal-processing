@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 class Wave:
 
 	# Construtor
-	def __init__(self, nameFile):
-		self.Fs, self.x = wavfile.read(nameFile)
+	def __init__(self, fileName):
+		self.Fs, self.x = wavfile.read(fileName)
 
 	@property 
 	def times(self):
@@ -37,14 +37,14 @@ class Wave:
 			ste.append(E[min(len(E) - 1, end)] - E[max(1, start) - 1])
 			t.append((i - 1) / self.Fs)
 
-		#Normalize STE
+		# Normalize STE
 		ste = np.array(ste)/max(ste)
 		t = np.array(t)
 
 		return [t, ste]
 
 	#	Init threshold value
-	def InitThreshold(self, height = 1e-2):
+	def InitThreshold(self, height=1e-2):
 		t, ste = self.STE()
 		pre = 0
 		i = 1
@@ -68,7 +68,7 @@ class Wave:
 		return tmp[0]
 
 	# Array of index speech and silence
-	def DetectSilenceSpeech(self, T, minSilenceLen = 0.3):
+	def DetectSilenceSpeech(self, T, minSilenceLen=0.3):
 		t, ste = self.STE()
 		silence = []
 		speech = []
@@ -179,43 +179,42 @@ class Wave:
 
 		return Tmid
 
-	def PlotSpeechSilentDiscrimination(self, nameFile):
+	# Extract spectral envelope
+	def SpectralEnvelop(self, g):
+		# Divide the g region into 3 equal parts and take the middle segment
+		g = np.array(g)
+		g = g[len(g) // 3: 2 * len(g) // 3]
+
+		return g
+
+	def PlotSpeechSilentDiscrimination(self, fileName):
 		n = self.times
+		t, ste = self.STE()
 		T = self.STEThreshold()
 		f, g = self.DetectSilenceSpeech(T)
-		t, ste = self.STE()
+		g_mid = self.SpectralEnvelop(g)
 
-		fig = plt.figure(nameFile)
-		plt.suptitle(nameFile)
-		ax1 = fig.add_subplot(211)
-		ax2 = fig.add_subplot(212)
+		fig = plt.figure(fileName)
+		plt.suptitle(fileName)
+		ax1 = fig.add_subplot(111)
+		ax1.set_title('Vowel Discrimination')
+		ax1.set_xlabel('Time (s)')
+		ax1.set_ylabel('Amplitude')
+
+		ax1.plot(n, self.x, '#0080FF')
+		ax1.plot(t, ste, '#FF0000')
 
 		for i in f:
 			start, end = t[i[0]], t[i[-1]]
 
-			ax1.plot([start, start], [0, max(ste)], '#008000')
-			ax1.plot([end, end], [0, max(ste)], '#008000')
-			ax1.set_title('Short-Time Energy')
-			ax1.set_xlabel('Time (s)')
-			ax1.set_ylabel('Enegry')
+			ax1.plot([start, start], [-1, 1], '#008000')
+			ax1.plot([end, end], [-1, 1], '#008000')
+			
+		# Plot start and end of g_mid
+		start_se, end_se = t[g_mid[0]], t[g_mid[-1]]
 
-			ax2.plot([start, start], [-1, 1], '#008000')
-			ax2.plot([end, end], [-1, 1], '#008000')
-			ax2.set_title('Speech Silent Discrimination')
-			ax2.set_xlabel('Time (s)')
-			ax2.set_ylabel('Amplitude')
-
-			print(start, "\t", end)
-
-		print()
-
-		ax1.plot([0, n[-1]], [T, T], '#FFA500')
-		ax1.plot(t, ste, '#0080FF')
-
-		data = self.x
-
-		ax2.plot(n, data, '#0080FF')
-		ax2.plot(t, ste, '#FF0000')
+		ax1.plot([start_se, start_se], [-1, 1], '#FFD700')
+		ax1.plot([end_se, end_se], [-1, 1], '#FFD700')
 
 		plt.tight_layout()
 
@@ -228,12 +227,14 @@ def main():
 	# 							'22MHL']
 
 	# NguyenAmKiemThu-16k
-	folderNames = ['23MTL', '24FTL', '25MLM', '27MCM', '28MVN',
-								'29MHN', '30FTN', '32MTP', '33MHP', '34MQP',
-								'35MMQ', '36MAQ', '37MDS', '38MDS', '39MTS',
-								'40MHS', '41MVS', '42FQT', '43MNT', '44MTT',
-          			'45MDV']
-	vowels = ['a.wav', 'e.wav', 'i.wav', 'o.wav', 'u.wav']
+	folderNames = ['39MTS']
+	# folderNames = ['23MTL', '24FTL', '25MLM', '27MCM', '28MVN',
+	# 							'29MHN', '30FTN', '32MTP', '33MHP', '34MQP',
+	# 							'35MMQ', '36MAQ', '37MDS', '38MDS', '39MTS',
+	# 							'40MHS', '41MVS', '42FQT', '43MNT', '44MTT',
+  #         			'45MDV']
+	vowels = ['a.wav']
+	# vowels = ['a.wav', 'e.wav', 'i.wav', 'o.wav', 'u.wav']
 
 	for folderName in folderNames:
 		print('FOLDER', folderName, end='\n\n')
