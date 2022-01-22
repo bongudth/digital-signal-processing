@@ -48,7 +48,7 @@ def calculate_threshold(file_names):
 
 	for file_name in file_names:
 		signal, fs = sf.read(file_name + '.wav', dtype=np.int16)
-		voice, unvoice = read_file_lab(file_name + '.lab')
+		voice, unvoice = read_file_lab(file_name + '.txt')
 		ma = np.array(MA(signal, fs))
 
 		mean_voice = []
@@ -65,7 +65,7 @@ def calculate_threshold(file_names):
 			mean_unvoice = np.append(mean_unvoice,np.mean(ma[arr]))
 			std_unvoice = np.append(std_unvoice,np.std(ma[arr]))
 
-		sum = 0;
+		sum = 0
 		for i in range(0, len(mean_voice)):
 			sum = mean_voice[i] + sum
 
@@ -228,8 +228,6 @@ for file in vowel_files:
 	vowel_mfccs_average_array[file] = sum(vowel_mfccs_array[file]) / len(vowel_mfccs_array[file])
 
 print('vowel_mfccs_average_array:', vowel_mfccs_average_array)
-
-
 
 '''
 	3.	SO KHỚP VECTOR MFCC CỦA TÍN HIỆU NGUYÊN ÂM ĐẦU VÀO VỚI 5 VECTOR ĐẶC TRUNG ĐÃ TRÍCH XUẤT CỦA 5 NGUYÊN ÂM

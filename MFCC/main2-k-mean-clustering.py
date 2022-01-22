@@ -65,7 +65,7 @@ def calculate_threshold(file_names):
 			mean_unvoice = np.append(mean_unvoice,np.mean(ma[arr]))
 			std_unvoice = np.append(std_unvoice,np.std(ma[arr]))
 
-		sum = 0;
+		sum = 0
 		for i in range(0, len(mean_voice)):
 			sum = mean_voice[i] + sum
 
@@ -104,7 +104,7 @@ vowel_files = ['a', 'e', 'i', 'o', 'u']
 N = 13 # 13, 26, 39
 
 # số vector đặc trưng cho 1 nguyên âm của nhiều người nói (K-means clustering)
-K = 12 # 2, 3, 4, 5
+K = 9 # 2, 3, 4, 5
 
 def get_frames(signal, fs, t):
 	frame_length = int(frame_time * fs)
@@ -222,7 +222,6 @@ for v in vowel_files:
 	wovel_kmeans_clustering_array[v] = kmeans
 
 print('wovel_kmeans_clustering_array:', wovel_kmeans_clustering_array)
-
 
 '''
 	3.	SO KHỚP VECTOR MFCC CỦA TÍN HIỆU NGUYÊN ÂM ĐẦU VÀO VỚI 5*K VECTOR ĐẶC TRUNG ĐÃ TRÍCH XUẤT CỦA 5 NGUYÊN ÂM
